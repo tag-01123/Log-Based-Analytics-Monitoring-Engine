@@ -30,8 +30,8 @@
 # step 6 : Delect anamoly
 # step 7 : return anamoly
 import dask.dataframe as dd
-def detect_anomaly(log_df, z_threshold=3):
-    """
+import os
+"""
     Detects anomalies in log data based on Z-score method.
     
     Parameters:
@@ -41,30 +41,36 @@ def detect_anomaly(log_df, z_threshold=3):
     Returns:
     - Dask DataFrame with anomalies flagged.
     """
-    #log_df = ["timestamp", "level", "service", "message"]
+   
+def detect_anomaly(log_df, z_threshold=1):
+    log_df['timestamp'] = dd.to_datetime(log_df['timestamp'] )
+    log_df['level'] = log_df["level"].str.strip().str.upper()
 
-    # Filter error logs
     error_logs = log_df[log_df['level'] == 'ERROR']
-    
+    error_logs.compute()
+
+    # Create minute bucket
+    error_logs["minute"] = error_logs["timestamp"].dt.floor("min")
+
     # Count errors per minute
     error_counts = (
         error_logs
-        .set_index('timestamp')
-        .resample('1T')  # 1 minute intervals
+        .groupby("minute")
         .size()
-        .rename('error_count')
+        .rename("error_count")
         .reset_index()
-    )
-    
-    # Calculate mean and standard deviation
-    mean = error_counts['error_count'].mean().compute()
-    std_dev = error_counts['error_count'].std().compute()
-     
-    # Calculate Z-score
-    error_counts['z_score'] = (error_counts['error_count'] - mean) / std_dev
-    
-    # Flag anomalies
-    error_counts['is_anomaly'] = error_counts['z_score'].abs() > z_threshold
-    
-    return error_counts[error_counts['is_anomaly']]
-    
+    ).compute()
+
+    # Compute statistics
+    mean = error_counts["error_count"].mean()
+    std  = error_counts["error_count"].std()
+
+    if std == 0:
+        error_counts["z_score"] = 0
+        error_counts["is_anomaly"] = True
+        return error_counts
+
+    error_counts["z_score"] = (error_counts["error_count"] - mean) / std
+    error_counts["is_anomaly"] = error_counts["z_score"].abs() > z_threshold
+
+    return error_counts[error_counts["is_anomaly"]]

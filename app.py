@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.express as px
-#import build_pipeline from backend.processing.pipeline
 from backend.processing.pipeline import build_pipeline
 from backend.anomaly.detector import detect_anomalies
 
@@ -17,5 +16,6 @@ st.plotly_chart(fig)
 
 st.subheader("Anomalous Log Entries")
 st.dataframe(anomaly_df)
+
 
 

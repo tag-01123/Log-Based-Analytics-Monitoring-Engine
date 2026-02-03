@@ -1,12 +1,12 @@
 import time
 import dask.dataframe as dd
     
-from config.dask_config import start_dask
-from ingestion.loader import load_logs
-from ingestion.parser import parse_log_line
-from processing.pipeline import build_pipeline
-from config.email_config import send_email
-from anomaly.detector import detect_anomaly
+from backend.config.dask_config import start_dask
+from backend.ingestion.loader import load_logs
+from backend.ingestion.parser import parse_log_line
+from backend.processing.pipeline import build_pipeline
+from backend.config.email_config import send_email
+from backend.anomaly.detector import detect_anomaly
 
 user_mail="gunetanmay@gmail.com"
 def main():
@@ -17,19 +17,24 @@ def main():
     print("-" * 50)
 
     start_time = time.time()
+    #log_df = build_pipeline("backend/logs/sample_log.log")
+    log_df = build_pipeline("backend/log_generator/realtime_logs.csv")
+    total_logs = log_df.count().compute()
 
-    log_df = build_pipeline("logs/sample_log.log")
-
+    end_time = time.time()
     anomalies_df = detect_anomaly(log_df)
-    anomalies=anomalies_df.compute()
-    if anomalies.empty:
+    print(anomalies_df)
+
+    anomalies = anomalies_df[anomalies_df["is_anomaly"] == True]
+
+    if anomalies.shape[0] == 0:
         print("No anomalies detected.")
     else:
-        print(f"{len(anomalies)} Anomalies detected:")
+        print(f"{anomalies.shape[0]} Anomalies detected:")
     
     for _, row in anomalies.iterrows():
         anomaly_data={
-            "timestamp": row['timestamp'],
+            "timestamp": row['minute'],
             "error_count": row['error_count'],
             "z_score": row['z_score']
         }
@@ -39,16 +44,16 @@ def main():
         )
     print("Anomaly Detected")
 
-    total_logs = log_df.count().compute()
-
-    end_time = time.time()
+    
 
     print("Total logs parsed:")
     print(total_logs)
     print("Time taken:", end_time - start_time)
 
-    input("Press Enter to exit...")
-
+    try:
+       input("Press Enter to exit...")
+    except EOFError:
+       pass
 
 if __name__ == "__main__":
     main()
